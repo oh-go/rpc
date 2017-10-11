@@ -48,6 +48,10 @@ type serviceMap struct {
 	services map[string]*service
 }
 
+func lowerFirst(name string) string {
+	return strings.ToLower(name[0:1]) + name[1:]
+}
+
 // register adds a new service using reflection to extract its methods.
 func (m *serviceMap) register(rcvr interface{}, name string) error {
 	// Setup service.
@@ -101,7 +105,7 @@ func (m *serviceMap) register(rcvr interface{}, name string) error {
 		if returnType := mtype.Out(0); returnType != typeOfError {
 			continue
 		}
-		s.methods[method.Name] = &serviceMethod{
+		s.methods[lowerFirst(method.Name)] = &serviceMethod{
 			method:    method,
 			argsType:  args.Elem(),
 			replyType: reply.Elem(),
