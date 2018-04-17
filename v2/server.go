@@ -46,10 +46,25 @@ func NewServer() *Server {
 	}
 }
 
+// RequestInfo contains all the information we pass to before/after functions
+type RequestInfo struct {
+	Method     string
+	Error      error
+	Request    *http.Request
+	StatusCode int
+}
+
+// InterruptInfo contains
+type InterruptInfo struct {
+	Error      error
+	StatusCode int
+}
+
 // Server serves registered RPC services using registered codecs.
 type Server struct {
-	codecs   map[string]Codec
-	services *serviceMap
+	codecs        map[string]Codec
+	services      *serviceMap
+	interruptFunc func(i *RequestInfo) *InterruptInfo
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -91,6 +106,16 @@ func (s *Server) HasMethod(method string) bool {
 	return false
 }
 
+// RegisterInterruptFunc registers the specified function as the function
+// that will be called before every request. The function is allowed to interrupt
+// the request.
+//
+// Note: Only one function can be registered, subsequent calls to this
+// method will overwrite all the previous functions.
+func (s *Server) RegisterInterruptFunc(f func(i *RequestInfo) *InterruptInfo) {
+	s.interruptFunc = f
+}
+
 // ServeHTTP
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -117,6 +142,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	codecReq := codec.NewRequest(r)
 	// Get service method to be called.
 	method, errMethod := codecReq.Method()
+	// Call the registered Intercept Function
+	if s.interruptFunc != nil {
+		interrupt := s.interruptFunc(&RequestInfo{
+			Request: r,
+			Method:  method,
+		})
+		if interrupt.Error != nil {
+			codecReq.WriteError(w, interrupt.StatusCode, interrupt.Error)
+			return
+		}
+	}
+	// method
 	if errMethod != nil {
 		codecReq.WriteError(w, 400, errMethod)
 		return

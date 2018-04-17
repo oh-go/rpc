@@ -6,6 +6,7 @@
 package rpc
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"testing"
@@ -39,13 +40,13 @@ func TestRegisterService(t *testing.T) {
 
 	// Inferred name.
 	err = s.RegisterService(service1, "")
-	if err != nil || !s.HasMethod("Service1.Multiply") {
-		t.Errorf("Expected to be registered: Service1.Multiply")
+	if err != nil || !s.HasMethod("Service1.multiply") {
+		t.Errorf("Expected to be registered: Service1.multiply")
 	}
 	// Provided name.
 	err = s.RegisterService(service1, "Foo")
-	if err != nil || !s.HasMethod("Foo.Multiply") {
-		t.Errorf("Expected to be registered: Foo.Multiply")
+	if err != nil || !s.HasMethod("Foo.multiply") {
+		t.Errorf("Expected to be registered: Foo.multiply")
 	}
 	// No methods.
 	err = s.RegisterService(service2, "")
@@ -68,7 +69,7 @@ type MockCodecRequest struct {
 }
 
 func (r MockCodecRequest) Method() (string, error) {
-	return "Service1.Multiply", nil
+	return "Service1.multiply", nil
 }
 
 func (r MockCodecRequest) ReadRequest(args interface{}) error {
@@ -159,5 +160,37 @@ func TestServeHTTP(t *testing.T) {
 	}
 	if w.Body != strconv.Itoa(expected) {
 		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
+	}
+}
+
+func TestInterruptFunc(t *testing.T) {
+	const (
+		A = 2
+		B = 3
+	)
+	expected := "interrupt"
+
+	s := NewServer()
+	s.RegisterService(new(Service1), "")
+	s.RegisterCodec(MockCodec{A, B}, "mock")
+	s.RegisterInterruptFunc(func(i *RequestInfo) *InterruptInfo {
+		return &InterruptInfo{
+			Error:      fmt.Errorf("interrupt"),
+			StatusCode: 401,
+		}
+	})
+
+	r, err := http.NewRequest("POST", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "mock; dummy")
+	w := NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 401 {
+		t.Errorf("Status was %d, should be 401.", w.Status)
+	}
+	if w.Body != expected {
+		t.Errorf("Response body was %s, should be %s.", w.Body, expected)
 	}
 }
