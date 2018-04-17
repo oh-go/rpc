@@ -68,7 +68,7 @@ type MockCodecRequest struct {
 }
 
 func (r MockCodecRequest) Method() (string, error) {
-	return "Service1.Multiply", nil
+	return "Service1.multiply", nil
 }
 
 func (r MockCodecRequest) ReadRequest(args interface{}) error {
