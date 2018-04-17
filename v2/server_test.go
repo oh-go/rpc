@@ -6,6 +6,7 @@
 package rpc
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"testing"
@@ -159,5 +160,37 @@ func TestServeHTTP(t *testing.T) {
 	}
 	if w.Body != strconv.Itoa(expected) {
 		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
+	}
+}
+
+func TestInterruptFunc(t *testing.T) {
+	const (
+		A = 2
+		B = 3
+	)
+	expected := "interrupt"
+
+	s := NewServer()
+	s.RegisterService(new(Service1), "")
+	s.RegisterCodec(MockCodec{A, B}, "mock")
+	s.RegisterInterruptFunc(func(i *RequestInfo) *InterruptInfo {
+		return &InterruptInfo{
+			Error:      fmt.Errorf("interrupt"),
+			StatusCode: 401,
+		}
+	})
+
+	r, err := http.NewRequest("POST", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "mock; dummy")
+	w := NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 401 {
+		t.Errorf("Status was %d, should be 401.", w.Status)
+	}
+	if w.Body != expected {
+		t.Errorf("Response body was %s, should be %s.", w.Body, expected)
 	}
 }
