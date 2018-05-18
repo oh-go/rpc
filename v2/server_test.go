@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+	"time"
 )
 
 type Service1Request struct {
@@ -192,5 +193,39 @@ func TestInterruptFunc(t *testing.T) {
 	}
 	if w.Body != expected {
 		t.Errorf("Response body was %s, should be %s.", w.Body, expected)
+	}
+}
+
+func TestInstrumentFunc(t *testing.T) {
+	const (
+		A = 2
+		B = 3
+	)
+	s := NewServer()
+	s.RegisterService(new(Service1), "")
+	var method string
+	var duration time.Duration
+	var statusCode int
+	s.RegisterInstrumentFunc(func(i *InstrumentInfo) {
+		method = i.Method
+		duration = i.Duration
+		statusCode = i.StatusCode
+	})
+	s.RegisterCodec(MockCodec{A, B}, "mock")
+	r, err := http.NewRequest("POST", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "mock; dummy")
+	w := NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if method != "Service1.multiply" {
+		t.Errorf("Method was %v, should be Service1.multiply.", method)
+	}
+	if int64(duration) == 0 {
+		t.Errorf("Duration should not be 0")
+	}
+	if statusCode != 200 {
+		t.Error("Code should be 200")
 	}
 }
