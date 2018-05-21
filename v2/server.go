@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"time"
 )
 
 // ----------------------------------------------------------------------------
@@ -60,11 +61,18 @@ type InterruptInfo struct {
 	StatusCode int
 }
 
+type InstrumentInfo struct {
+	Duration   time.Duration
+	Method     string
+	StatusCode int
+}
+
 // Server serves registered RPC services using registered codecs.
 type Server struct {
-	codecs        map[string]Codec
-	services      *serviceMap
-	interruptFunc func(i *RequestInfo) *InterruptInfo
+	codecs         map[string]Codec
+	services       *serviceMap
+	interruptFunc  func(i *RequestInfo) *InterruptInfo
+	instrumentFunc func(i *InstrumentInfo)
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -116,10 +124,19 @@ func (s *Server) RegisterInterruptFunc(f func(i *RequestInfo) *InterruptInfo) {
 	s.interruptFunc = f
 }
 
+// RegisterInstrumentFunc register the func which will give request info and handler process duration
+func (s *Server) RegisterInstrumentFunc(f func(instrumentInfo *InstrumentInfo)) {
+	s.instrumentFunc = f
+}
+
 // ServeHTTP
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	var statusCode = 200
+
 	if r.Method != "POST" {
-		WriteError(w, 405, "rpc: POST method required, received "+r.Method)
+		statusCode = 405
+		WriteError(w, statusCode, "rpc: POST method required, received "+r.Method)
 		return
 	}
 	contentType := r.Header.Get("Content-Type")
@@ -135,7 +152,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			codec = c
 		}
 	} else if codec = s.codecs[strings.ToLower(contentType)]; codec == nil {
-		WriteError(w, 415, "rpc: unrecognized Content-Type: "+contentType)
+		statusCode = 415
+		WriteError(w, statusCode, "rpc: unrecognized Content-Type: "+contentType)
 		return
 	}
 	// Create a new codec request.
@@ -153,20 +171,31 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	defer func() { // call instrument func with method
+		duration := time.Since(start)
+		if s.instrumentFunc != nil {
+			s.instrumentFunc(&InstrumentInfo{Method: method, Duration: duration, StatusCode: statusCode})
+		}
+	}()
+
 	// method
 	if errMethod != nil {
-		codecReq.WriteError(w, 400, errMethod)
+		statusCode = 400
+		codecReq.WriteError(w, statusCode, errMethod)
 		return
 	}
 	serviceSpec, methodSpec, errGet := s.services.get(method)
 	if errGet != nil {
-		codecReq.WriteError(w, 400, errGet)
+		statusCode = 400
+		codecReq.WriteError(w, statusCode, errGet)
 		return
 	}
 	// Decode the args.
 	args := reflect.New(methodSpec.argsType)
 	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
-		codecReq.WriteError(w, 400, errRead)
+		statusCode = 400
+		codecReq.WriteError(w, statusCode, errRead)
 		return
 	}
 	// Call the service method.
@@ -190,7 +219,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if errResult == nil {
 		codecReq.WriteResponse(w, reply.Interface())
 	} else {
-		codecReq.WriteError(w, 400, errResult)
+		statusCode = 400
+		codecReq.WriteError(w, statusCode, errResult)
 	}
 }
 
