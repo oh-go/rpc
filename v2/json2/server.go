@@ -168,12 +168,13 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 	c.writeServerResponse(w, res)
 }
 
-func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
+func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error, reply interface{}) {
 	jsonErr, ok := err.(*Error)
 	if !ok {
 		jsonErr = &Error{
 			Code:    E_SERVER,
 			Message: err.Error(),
+			Data:    reply,
 		}
 	}
 	res := &serverResponse{

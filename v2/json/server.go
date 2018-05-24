@@ -129,7 +129,7 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 	}
 }
 
-func (c *CodecRequest) WriteError(w http.ResponseWriter, _ int, err error) {
+func (c *CodecRequest) WriteError(w http.ResponseWriter, _ int, err error, reply interface{}) {
 	res := &serverResponse{
 		Result: &null,
 		Id:     c.request.Id,

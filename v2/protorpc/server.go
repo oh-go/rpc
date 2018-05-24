@@ -124,7 +124,7 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 	c.writeServerResponse(w, 200, res)
 }
 
-func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
+func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error, reply interface{}) {
 	res := &serverResponse{
 		Result: &struct {
 			ErrorMessage interface{} `json:"error_message"`

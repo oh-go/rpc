@@ -32,7 +32,7 @@ type CodecRequest interface {
 	// Writes the response using the RPC method reply.
 	WriteResponse(http.ResponseWriter, interface{})
 	// Writes an error produced by the server.
-	WriteError(w http.ResponseWriter, status int, err error)
+	WriteError(w http.ResponseWriter, status int, err error, reply interface{})
 }
 
 // ----------------------------------------------------------------------------
@@ -167,7 +167,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Method:  method,
 		})
 		if interrupt.Error != nil {
-			codecReq.WriteError(w, interrupt.StatusCode, interrupt.Error)
+			codecReq.WriteError(w, interrupt.StatusCode, interrupt.Error, nil)
 			return
 		}
 	}
@@ -182,20 +182,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// method
 	if errMethod != nil {
 		statusCode = 400
-		codecReq.WriteError(w, statusCode, errMethod)
+		codecReq.WriteError(w, statusCode, errMethod, nil)
 		return
 	}
 	serviceSpec, methodSpec, errGet := s.services.get(method)
 	if errGet != nil {
 		statusCode = 400
-		codecReq.WriteError(w, statusCode, errGet)
+		codecReq.WriteError(w, statusCode, errGet, nil)
 		return
 	}
 	// Decode the args.
 	args := reflect.New(methodSpec.argsType)
 	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
 		statusCode = 400
-		codecReq.WriteError(w, statusCode, errRead)
+		codecReq.WriteError(w, statusCode, errRead, nil)
 		return
 	}
 	// Call the service method.
@@ -220,7 +220,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		codecReq.WriteResponse(w, reply.Interface())
 	} else {
 		statusCode = 400
-		codecReq.WriteError(w, statusCode, errResult)
+		codecReq.WriteError(w, statusCode, errResult, reply.Interface())
 	}
 }
 

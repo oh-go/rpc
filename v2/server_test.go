@@ -84,7 +84,7 @@ func (r MockCodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}
 	w.Write([]byte(strconv.Itoa(res.Result)))
 }
 
-func (r MockCodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
+func (r MockCodecRequest) WriteError(w http.ResponseWriter, status int, err error, reply interface{}) {
 	w.WriteHeader(status)
 	w.Write([]byte(err.Error()))
 }
