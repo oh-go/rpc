@@ -65,6 +65,7 @@ type InstrumentInfo struct {
 	Duration   time.Duration
 	Method     string
 	StatusCode int
+	Error      error
 }
 
 // Server serves registered RPC services using registered codecs.
@@ -156,11 +157,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, statusCode, "rpc: unrecognized Content-Type: "+contentType)
 		return
 	}
+
+	var errResult error
 	// Create a new codec request.
 	codecReq := codec.NewRequest(r)
 	// Get service method to be called.
 	method, errMethod := codecReq.Method()
 	// Call the registered Intercept Function
+	defer func() { // call instrument func with method
+		duration := time.Since(start)
+		if s.instrumentFunc != nil {
+			s.instrumentFunc(&InstrumentInfo{Method: method, Duration: duration, StatusCode: statusCode, Error: errResult})
+		}
+	}()
+
 	if s.interruptFunc != nil {
 		interrupt := s.interruptFunc(&RequestInfo{
 			Request: r,
@@ -171,13 +181,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
-	defer func() { // call instrument func with method
-		duration := time.Since(start)
-		if s.instrumentFunc != nil {
-			s.instrumentFunc(&InstrumentInfo{Method: method, Duration: duration, StatusCode: statusCode})
-		}
-	}()
 
 	// method
 	if errMethod != nil {
@@ -207,7 +210,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reply,
 	})
 	// Cast the result to error if needed.
-	var errResult error
 	errInter := errValue[0].Interface()
 	if errInter != nil {
 		errResult = errInter.(error)
