@@ -66,6 +66,8 @@ type InstrumentInfo struct {
 	Method     string
 	StatusCode int
 	Error      error
+	Args       reflect.Value
+	Request    *http.Request
 }
 
 // Server serves registered RPC services using registered codecs.
@@ -159,6 +161,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var errResult error
+	var args reflect.Value
 	// Create a new codec request.
 	codecReq := codec.NewRequest(r)
 	// Get service method to be called.
@@ -167,7 +170,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() { // call instrument func with method
 		duration := time.Since(start)
 		if s.instrumentFunc != nil {
-			s.instrumentFunc(&InstrumentInfo{Method: method, Duration: duration, StatusCode: statusCode, Error: errResult})
+			s.instrumentFunc(&InstrumentInfo{Method: method, Duration: duration, StatusCode: statusCode, Error: errResult, Args: args, Request: r})
 		}
 	}()
 
@@ -195,7 +198,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Decode the args.
-	args := reflect.New(methodSpec.argsType)
+	args = reflect.New(methodSpec.argsType)
 	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
 		statusCode = 400
 		codecReq.WriteError(w, statusCode, errRead, nil)
