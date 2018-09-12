@@ -67,6 +67,7 @@ type InstrumentInfo struct {
 	StatusCode int
 	Error      error
 	Args       reflect.Value
+	Reply      interface{}
 	Request    *http.Request
 }
 
@@ -166,13 +167,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	codecReq := codec.NewRequest(r)
 	// Get service method to be called.
 	method, errMethod := codecReq.Method()
-	// Call the registered Intercept Function
-	defer func() { // call instrument func with method
-		duration := time.Since(start)
-		if s.instrumentFunc != nil {
-			s.instrumentFunc(&InstrumentInfo{Method: method, Duration: duration, StatusCode: statusCode, Error: errResult, Args: args, Request: r})
-		}
-	}()
 
 	if s.interruptFunc != nil {
 		interrupt := s.interruptFunc(&RequestInfo{
@@ -212,6 +206,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		args,
 		reply,
 	})
+	// Call the registered Intercept Function
+	defer func() { // call instrument func with method
+		duration := time.Since(start)
+		if s.instrumentFunc != nil {
+			s.instrumentFunc(&InstrumentInfo{Method: method, Duration: duration, StatusCode: statusCode, Error: errResult, Args: args, Reply: reply, Request: r})
+		}
+	}()
 	// Cast the result to error if needed.
 	errInter := errValue[0].Interface()
 	if errInter != nil {
